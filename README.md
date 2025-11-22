@@ -282,6 +282,8 @@ The project includes GitHub Actions workflows for:
 3. **Update image repository** in `.github/workflows/ci-cd.yml` and `helm/pod-visualizer/values.yaml`
 4. **Push changes** - CI/CD will run automatically
 
+**Note**: The workflow includes proper permissions for security scanning and handles pull requests from forks gracefully.
+
 #### Creating Releases
 
 ```bash
@@ -294,6 +296,17 @@ make tag
 # - Creates a GitHub release
 # - Packages and attaches Helm chart
 ```
+
+### Security
+
+The project includes comprehensive security features:
+- **CodeQL v4** for future-proof security scanning
+- **Trivy vulnerability scanning** for code and containers  
+- **Automated security uploads** to GitHub Security tab
+- **Fork-friendly workflows** that handle permission issues gracefully
+- **Security policy** documentation in `SECURITY.md`
+
+See [SECURITY.md](SECURITY.md) for detailed security information and reporting procedures.
 
 ## Kubernetes Deployment
 

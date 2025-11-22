@@ -7,6 +7,12 @@ on:
   pull_request:
     branches: [ main ]
 
+# Add permissions for security events
+permissions:
+  contents: read
+  security-events: write
+  actions: read
+
 env:
   REGISTRY: docker.io
   IMAGE_NAME: your-dockerhub-username/pod-visualizer
@@ -71,8 +77,9 @@ jobs:
         output: 'trivy-results.sarif'
 
     - name: Upload Trivy scan results to GitHub Security tab
-      uses: github/codeql-action/upload-sarif@v3
-      if: always()
+      uses: github/codeql-action/upload-sarif@v4
+      # Skip upload on pull requests from forks to avoid permission issues
+      if: always() && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository)
       with:
         sarif_file: 'trivy-results.sarif'
 
@@ -128,7 +135,7 @@ jobs:
         output: 'docker-trivy-results.sarif'
 
     - name: Upload Docker scan results
-      uses: github/codeql-action/upload-sarif@v3
+      uses: github/codeql-action/upload-sarif@v4
       if: always()
       with:
         sarif_file: 'docker-trivy-results.sarif'
