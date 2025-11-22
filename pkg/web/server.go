@@ -316,16 +316,16 @@ func (s *Server) handleBroadcast() {
 // watchKubernetesEvents watches for changes in Kubernetes resources and broadcasts updates
 func (s *Server) watchKubernetesEvents() {
 	log.Println("Starting Kubernetes events watcher...")
-	
+
 	ctx := context.Background()
-	
+
 	for {
 		// Watch pods
 		go s.watchPods(ctx)
-		
-		// Watch deployments  
+
+		// Watch deployments
 		go s.watchDeployments(ctx)
-		
+
 		// Send periodic updates every 10 seconds as fallback
 		ticker := time.NewTicker(10 * time.Second)
 		for range ticker.C {
@@ -334,7 +334,7 @@ func (s *Server) watchKubernetesEvents() {
 				log.Printf("Error getting cluster data: %v", err)
 				continue
 			}
-			
+
 			select {
 			case s.broadcast <- clusterData:
 			default:
@@ -361,7 +361,7 @@ func (s *Server) watchPods(ctx context.Context) {
 					log.Printf("Error getting cluster data after pod event: %v", err)
 					continue
 				}
-				
+
 				select {
 				case s.broadcast <- clusterData:
 				default:
@@ -369,7 +369,7 @@ func (s *Server) watchPods(ctx context.Context) {
 				}
 			}
 		}
-		
+
 		watcher.Stop()
 		time.Sleep(1 * time.Second) // Brief pause before restarting watcher
 	}
@@ -392,7 +392,7 @@ func (s *Server) watchDeployments(ctx context.Context) {
 					log.Printf("Error getting cluster data after deployment event: %v", err)
 					continue
 				}
-				
+
 				select {
 				case s.broadcast <- clusterData:
 				default:
@@ -400,7 +400,7 @@ func (s *Server) watchDeployments(ctx context.Context) {
 				}
 			}
 		}
-		
+
 		watcher.Stop()
 		time.Sleep(1 * time.Second) // Brief pause before restarting watcher
 	}
