@@ -40,6 +40,10 @@ spec:
           env:
             - name: PORT
               value: "{{ .Values.app.port }}"
+            {{- if .Values.app.defaultNamespace }}
+            - name: DEFAULT_NAMESPACE
+              value: "{{ .Values.app.defaultNamespace }}"
+            {{- end }}
           {{- if .Values.healthCheck.enabled }}
           livenessProbe:
             {{- toYaml .Values.healthCheck.livenessProbe | nindent 12 }}

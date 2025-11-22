@@ -85,6 +85,8 @@ affinity: {}
 app:
   port: 8080
   logLevel: info
+  # Default namespace to filter/display (empty = all namespaces)
+  defaultNamespace: "pod-visualizer-demo"
 
 # Health check configuration
 healthCheck:

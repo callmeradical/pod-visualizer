@@ -1,0 +1,207 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: pod-visualizer-demo
+  labels:
+    app: pod-visualizer
+    purpose: demo
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: demo-app-frontend
+  namespace: pod-visualizer-demo
+  labels:
+    app: demo-frontend
+    tier: frontend
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: demo-frontend
+  template:
+    metadata:
+      labels:
+        app: demo-frontend
+        tier: frontend
+    spec:
+      containers:
+      - name: nginx
+        image: nginx:1.21-alpine
+        ports:
+        - containerPort: 80
+        resources:
+          requests:
+            memory: "32Mi"
+            cpu: "50m"
+          limits:
+            memory: "128Mi"
+            cpu: "200m"
+        readinessProbe:
+          httpGet:
+            path: /
+            port: 80
+          initialDelaySeconds: 5
+          periodSeconds: 5
+        livenessProbe:
+          httpGet:
+            path: /
+            port: 80
+          initialDelaySeconds: 10
+          periodSeconds: 30
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: demo-app-backend
+  namespace: pod-visualizer-demo
+  labels:
+    app: demo-backend
+    tier: backend
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: demo-backend
+  template:
+    metadata:
+      labels:
+        app: demo-backend
+        tier: backend
+    spec:
+      containers:
+      - name: redis
+        image: redis:7-alpine
+        ports:
+        - containerPort: 6379
+        resources:
+          requests:
+            memory: "64Mi"
+            cpu: "100m"
+          limits:
+            memory: "256Mi"
+            cpu: "300m"
+        readinessProbe:
+          exec:
+            command:
+            - redis-cli
+            - ping
+          initialDelaySeconds: 5
+          periodSeconds: 5
+        livenessProbe:
+          exec:
+            command:
+            - redis-cli
+            - ping
+          initialDelaySeconds: 10
+          periodSeconds: 30
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: demo-app-database
+  namespace: pod-visualizer-demo
+  labels:
+    app: demo-database
+    tier: database
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: demo-database
+  template:
+    metadata:
+      labels:
+        app: demo-database
+        tier: database
+    spec:
+      containers:
+      - name: postgres
+        image: postgres:15-alpine
+        env:
+        - name: POSTGRES_DB
+          value: demoapp
+        - name: POSTGRES_USER
+          value: demouser
+        - name: POSTGRES_PASSWORD
+          value: demopass123
+        ports:
+        - containerPort: 5432
+        resources:
+          requests:
+            memory: "128Mi"
+            cpu: "100m"
+          limits:
+            memory: "512Mi"
+            cpu: "500m"
+        readinessProbe:
+          exec:
+            command:
+            - pg_isready
+            - -U
+            - demouser
+            - -d
+            - demoapp
+          initialDelaySeconds: 15
+          periodSeconds: 10
+        livenessProbe:
+          exec:
+            command:
+            - pg_isready
+            - -U
+            - demouser
+            - -d
+            - demoapp
+          initialDelaySeconds: 30
+          periodSeconds: 30
+        volumeMounts:
+        - name: postgres-data
+          mountPath: /var/lib/postgresql/data
+      volumes:
+      - name: postgres-data
+        emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: demo-frontend-service
+  namespace: pod-visualizer-demo
+  labels:
+    app: demo-frontend
+spec:
+  selector:
+    app: demo-frontend
+  ports:
+  - port: 80
+    targetPort: 80
+  type: ClusterIP
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: demo-backend-service
+  namespace: pod-visualizer-demo
+  labels:
+    app: demo-backend
+spec:
+  selector:
+    app: demo-backend
+  ports:
+  - port: 6379
+    targetPort: 6379
+  type: ClusterIP
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: demo-database-service
+  namespace: pod-visualizer-demo
+  labels:
+    app: demo-database
+spec:
+  selector:
+    app: demo-database
+  ports:
+  - port: 5432
+    targetPort: 5432
+  type: ClusterIP

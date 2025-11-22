@@ -13,6 +13,13 @@ const RECONNECT_DELAY = 2000; // 2 seconds
 document.addEventListener('DOMContentLoaded', function() {
     console.log('Pod Visualizer frontend loaded');
     
+    // Get default namespace from meta tag
+    const defaultNamespace = document.querySelector('meta[name="default-namespace"]')?.getAttribute('content') || '';
+    if (defaultNamespace) {
+        currentNamespace = defaultNamespace;
+        console.log('Setting default namespace to:', defaultNamespace);
+    }
+    
     // Try to connect to WebSocket first
     connectWebSocket();
     
@@ -179,7 +186,7 @@ function updateNamespaceList(pods, deployments) {
 // Populate namespace filter dropdown
 function populateNamespaceFilter() {
     const select = document.getElementById('namespace');
-    const currentValue = select.value;
+    const currentValue = currentNamespace || select.value;
     
     // Clear existing options except "All Namespaces"
     select.innerHTML = '<option value="">All Namespaces</option>';
@@ -192,8 +199,17 @@ function populateNamespaceFilter() {
         select.appendChild(option);
     });
     
-    // Restore selection
+    // Set selection to current namespace or restore previous selection
     select.value = currentValue;
+    
+    // If we have a default namespace but it's not in the list yet, add it
+    if (currentNamespace && !namespaceList.has(currentNamespace)) {
+        const option = document.createElement('option');
+        option.value = currentNamespace;
+        option.textContent = currentNamespace;
+        select.appendChild(option);
+        select.value = currentNamespace;
+    }
 }
 
 // Update last updated time

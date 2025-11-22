@@ -7,6 +7,7 @@ import (
 	"html/template"
 	"log"
 	"net/http"
+	"os"
 	"path/filepath"
 	"sync"
 	"time"
@@ -107,7 +108,16 @@ func (s *Server) handleIndex(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	err := s.template.ExecuteTemplate(w, "index.html", nil)
+	// Get default namespace from environment variable
+	defaultNamespace := os.Getenv("DEFAULT_NAMESPACE")
+
+	data := struct {
+		DefaultNamespace string
+	}{
+		DefaultNamespace: defaultNamespace,
+	}
+
+	err := s.template.ExecuteTemplate(w, "index.html", data)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
