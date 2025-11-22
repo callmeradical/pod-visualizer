@@ -129,3 +129,8 @@ func (c *Client) GetDeployments(ctx context.Context, namespace string) ([]Deploy
 
 	return deploymentInfos, nil
 }
+
+// GetClientset returns the underlying Kubernetes clientset for advanced operations
+func (c *Client) GetClientset() *kubernetes.Clientset {
+	return c.clientset
+}

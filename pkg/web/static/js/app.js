@@ -3,17 +3,38 @@
 let currentNamespace = '';
 let autoRefreshInterval = null;
 let namespaceList = new Set();
+let websocket = null;
+let isWebSocketEnabled = false;
+let reconnectAttempts = 0;
+const MAX_RECONNECT_ATTEMPTS = 5;
+const RECONNECT_DELAY = 2000; // 2 seconds
 
 // Initialize the application
 document.addEventListener('DOMContentLoaded', function() {
     console.log('Pod Visualizer frontend loaded');
-    loadData();
-    populateNamespaceFilter();
+    
+    // Try to connect to WebSocket first
+    connectWebSocket();
+    
+    // Fallback to HTTP polling if WebSocket fails
+    setTimeout(() => {
+        if (!isWebSocketEnabled) {
+            console.log('WebSocket not available, falling back to HTTP polling');
+            loadData();
+            populateNamespaceFilter();
+        }
+    }, 1000);
     
     // Set up event listeners
     document.getElementById('namespace').addEventListener('change', function() {
         currentNamespace = this.value;
-        loadData();
+        if (!isWebSocketEnabled) {
+            loadData();
+        } else {
+            // With WebSocket, we could send a message to change namespace
+            // For now, we'll let the next update handle it
+            console.log('Namespace changed to:', currentNamespace);
+        }
     });
 });
 
@@ -246,3 +267,136 @@ document.addEventListener('keydown', function(event) {
         refreshData();
     }
 });
+
+// WebSocket Functions
+
+// Connect to WebSocket for real-time updates
+function connectWebSocket() {
+    try {
+        const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+        const wsUrl = `${protocol}//${window.location.host}/ws`;
+        
+        console.log('Attempting to connect to WebSocket:', wsUrl);
+        websocket = new WebSocket(wsUrl);
+        
+        websocket.onopen = function(event) {
+            console.log('✅ WebSocket connected successfully');
+            isWebSocketEnabled = true;
+            reconnectAttempts = 0;
+            updateConnectionStatus('Connected', true);
+            
+            // Disable auto-refresh since we have real-time updates
+            const autoRefreshCheckbox = document.getElementById('auto-refresh');
+            if (autoRefreshCheckbox && autoRefreshCheckbox.checked) {
+                autoRefreshCheckbox.checked = false;
+                toggleAutoRefresh();
+            }
+        };
+        
+        websocket.onmessage = function(event) {
+            try {
+                const data = JSON.parse(event.data);
+                console.log('📡 Received WebSocket data update');
+                
+                // Filter data based on current namespace if needed
+                let filteredData = data;
+                if (currentNamespace) {
+                    filteredData = {
+                        ...data,
+                        pods: data.pods.filter(pod => pod.namespace === currentNamespace),
+                        deployments: data.deployments.filter(dep => dep.namespace === currentNamespace)
+                    };
+                    
+                    // Recalculate totals for filtered data
+                    filteredData.totalContainers = filteredData.pods.reduce((sum, pod) => sum + pod.containerCount, 0);
+                    filteredData.readyContainers = filteredData.pods.reduce((sum, pod) => sum + pod.readyContainers, 0);
+                    filteredData.containerPercentage = filteredData.totalContainers > 0 ? 
+                        (filteredData.readyContainers / filteredData.totalContainers) * 100 : 0;
+                        
+                    filteredData.totalReplicas = filteredData.deployments.reduce((sum, dep) => sum + dep.replicas, 0);
+                    filteredData.readyReplicas = filteredData.deployments.reduce((sum, dep) => sum + dep.readyReplicas, 0);
+                    filteredData.replicaPercentage = filteredData.totalReplicas > 0 ? 
+                        (filteredData.readyReplicas / filteredData.totalReplicas) * 100 : 0;
+                }
+                
+                updateDashboard(filteredData);
+                updateLastUpdatedTime(data.lastUpdated);
+                updateNamespaceList(data.pods, data.deployments); // Use full data for namespace list
+                
+            } catch (error) {
+                console.error('Error parsing WebSocket message:', error);
+            }
+        };
+        
+        websocket.onclose = function(event) {
+            console.log('🔌 WebSocket connection closed');
+            isWebSocketEnabled = false;
+            updateConnectionStatus('Disconnected', false);
+            
+            // Attempt to reconnect
+            if (reconnectAttempts < MAX_RECONNECT_ATTEMPTS) {
+                reconnectAttempts++;
+                console.log(`Attempting to reconnect (${reconnectAttempts}/${MAX_RECONNECT_ATTEMPTS})...`);
+                setTimeout(() => {
+                    connectWebSocket();
+                }, RECONNECT_DELAY * reconnectAttempts); // Exponential backoff
+            } else {
+                console.log('Max reconnection attempts reached, falling back to HTTP polling');
+                fallbackToPolling();
+            }
+        };
+        
+        websocket.onerror = function(error) {
+            console.error('WebSocket error:', error);
+            isWebSocketEnabled = false;
+            updateConnectionStatus('Error', false);
+        };
+        
+    } catch (error) {
+        console.error('Failed to create WebSocket connection:', error);
+        fallbackToPolling();
+    }
+}
+
+// Update connection status indicator
+function updateConnectionStatus(status, isConnected) {
+    const statusElement = document.getElementById('connection-status');
+    if (!statusElement) return;
+    
+    statusElement.textContent = status;
+    statusElement.className = isConnected ? 'connected' : 'disconnected';
+    
+    if (isConnected) {
+        statusElement.title = 'Real-time updates via WebSocket';
+    } else {
+        statusElement.title = 'Using HTTP polling for updates';
+    }
+}
+
+// Fallback to HTTP polling when WebSocket fails
+function fallbackToPolling() {
+    console.log('Falling back to HTTP polling mode');
+    isWebSocketEnabled = false;
+    updateConnectionStatus('Polling', false);
+    
+    // Load initial data
+    loadData();
+    populateNamespaceFilter();
+    
+    // Enable auto-refresh by default when using polling
+    const autoRefreshCheckbox = document.getElementById('auto-refresh');
+    if (autoRefreshCheckbox && !autoRefreshCheckbox.checked) {
+        autoRefreshCheckbox.checked = true;
+        toggleAutoRefresh();
+    }
+}
+
+// Disconnect WebSocket (useful for debugging or switching modes)
+function disconnectWebSocket() {
+    if (websocket) {
+        websocket.close();
+        websocket = null;
+    }
+    isWebSocketEnabled = false;
+    reconnectAttempts = MAX_RECONNECT_ATTEMPTS; // Prevent reconnection
+}
