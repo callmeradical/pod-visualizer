@@ -1,0 +1,40 @@
+---
+# ServiceAccount for Pod Visualizer
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: pod-visualizer
+  namespace: pod-visualizer
+  labels:
+    app: pod-visualizer
+---
+# ClusterRole with read permissions for pods and deployments
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: pod-visualizer
+  labels:
+    app: pod-visualizer
+rules:
+- apiGroups: [""]
+  resources: ["pods"]
+  verbs: ["get", "list", "watch"]
+- apiGroups: ["apps"]
+  resources: ["deployments"]
+  verbs: ["get", "list", "watch"]
+---
+# ClusterRoleBinding to bind the ServiceAccount to the ClusterRole
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: pod-visualizer
+  labels:
+    app: pod-visualizer
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: pod-visualizer
+subjects:
+- kind: ServiceAccount
+  name: pod-visualizer
+  namespace: pod-visualizer

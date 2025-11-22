@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pod Visualizer - Kubernetes Dashboard</title>
+    <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+    <header>
+        <h1>🚀 Pod Visualizer</h1>
+        <p>Kubernetes Container Overview Dashboard</p>
+    </header>
+
+    <main>
+        <div class="controls">
+            <div class="filter-section">
+                <label for="namespace">Namespace:</label>
+                <select id="namespace">
+                    <option value="">All Namespaces</option>
+                </select>
+            </div>
+            <button id="refresh-btn" onclick="refreshData()">🔄 Refresh</button>
+            <div class="auto-refresh">
+                <label>
+                    <input type="checkbox" id="auto-refresh" onchange="toggleAutoRefresh()">
+                    Auto-refresh (30s)
+                </label>
+            </div>
+        </div>
+
+        <div class="status-section">
+            <div class="last-updated">
+                Last updated: <span id="last-updated">Never</span>
+            </div>
+        </div>
+
+        <div class="dashboard-grid">
+            <!-- Summary Cards -->
+            <div class="summary-cards">
+                <div class="summary-card container-summary">
+                    <h3>📦 Containers</h3>
+                    <div class="metric">
+                        <span id="ready-containers">0</span> / <span id="total-containers">0</span>
+                    </div>
+                    <div class="progress-bar">
+                        <div id="container-progress" class="progress-fill"></div>
+                    </div>
+                    <div class="percentage" id="container-percentage">0%</div>
+                </div>
+
+                <div class="summary-card replica-summary">
+                    <h3>🚀 Replicas</h3>
+                    <div class="metric">
+                        <span id="ready-replicas">0</span> / <span id="total-replicas">0</span>
+                    </div>
+                    <div class="progress-bar">
+                        <div id="replica-progress" class="progress-fill"></div>
+                    </div>
+                    <div class="percentage" id="replica-percentage">0%</div>
+                </div>
+            </div>
+
+            <!-- Pods Section -->
+            <section class="pods-section">
+                <h2>🔍 Pods</h2>
+                <div id="pods-container" class="resource-container">
+                    <div class="loading">Loading pods...</div>
+                </div>
+            </section>
+
+            <!-- Deployments Section -->
+            <section class="deployments-section">
+                <h2>📋 Deployments</h2>
+                <div id="deployments-container" class="resource-container">
+                    <div class="loading">Loading deployments...</div>
+                </div>
+            </section>
+        </div>
+    </main>
+
+    <footer>
+        <p>Pod Visualizer - Built with Go & ❤️</p>
+    </footer>
+
+    <script src="/static/js/app.js"></script>
+</body>
+</html>

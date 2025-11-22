@@ -1,0 +1,97 @@
+---
+# Namespace for Pod Visualizer
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: pod-visualizer
+  labels:
+    name: pod-visualizer
+---
+# Deployment for Pod Visualizer Web
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: pod-visualizer-web
+  namespace: pod-visualizer
+  labels:
+    app: pod-visualizer
+    component: web
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: pod-visualizer
+      component: web
+  template:
+    metadata:
+      labels:
+        app: pod-visualizer
+        component: web
+    spec:
+      serviceAccountName: pod-visualizer
+      containers:
+      - name: pod-visualizer-web
+        image: pod-visualizer:latest
+        imagePullPolicy: IfNotPresent
+        ports:
+        - containerPort: 8080
+          name: http
+          protocol: TCP
+        env:
+        - name: PORT
+          value: "8080"
+        livenessProbe:
+          httpGet:
+            path: /
+            port: http
+          initialDelaySeconds: 30
+          periodSeconds: 30
+          timeoutSeconds: 5
+          failureThreshold: 3
+        readinessProbe:
+          httpGet:
+            path: /
+            port: http
+          initialDelaySeconds: 5
+          periodSeconds: 5
+          timeoutSeconds: 3
+          failureThreshold: 3
+        resources:
+          limits:
+            cpu: 200m
+            memory: 256Mi
+          requests:
+            cpu: 100m
+            memory: 128Mi
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          runAsNonRoot: true
+          runAsUser: 1001
+          capabilities:
+            drop:
+            - ALL
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1001
+        fsGroup: 1001
+---
+# Service for Pod Visualizer Web
+apiVersion: v1
+kind: Service
+metadata:
+  name: pod-visualizer-web
+  namespace: pod-visualizer
+  labels:
+    app: pod-visualizer
+    component: web
+spec:
+  type: ClusterIP
+  ports:
+  - port: 80
+    targetPort: http
+    protocol: TCP
+    name: http
+  selector:
+    app: pod-visualizer
+    component: web

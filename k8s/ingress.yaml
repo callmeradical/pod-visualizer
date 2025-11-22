@@ -1,0 +1,31 @@
+---
+# Ingress for Pod Visualizer Web (optional)
+# Uncomment and modify for your ingress controller
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: pod-visualizer-web
+  namespace: pod-visualizer
+  labels:
+    app: pod-visualizer
+    component: web
+  annotations:
+    # nginx.ingress.kubernetes.io/rewrite-target: /
+    # kubernetes.io/ingress.class: nginx
+    # cert-manager.io/cluster-issuer: letsencrypt-prod
+spec:
+  rules:
+  - host: pod-visualizer.your-domain.com  # Change this to your domain
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: pod-visualizer-web
+            port:
+              number: 80
+  # tls:
+  # - hosts:
+  #   - pod-visualizer.your-domain.com
+  #   secretName: pod-visualizer-tls
