@@ -6,7 +6,7 @@ A Kubernetes pod visualizer with **real-time WebSocket updates** - perfect for d
 
 ```bash
 # Option 1: Use pre-built Helm chart from DockerHub (recommended)
-helm upgrade --install pod-visualizer oci://docker.io/callmeradical/pod-visualizer
+helm upgrade --install pod-visualizer oci://registry-1.docker.io/callmeradical/pod-visualizer --version 0.1.0
 kubectl apply -f https://raw.githubusercontent.com/callmeradical/pod-visualizer/main/k8s/demo-namespace.yaml
 
 # Option 2: Clone and build locally

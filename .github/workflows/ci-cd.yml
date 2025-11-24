@@ -191,7 +191,7 @@ jobs:
         echo "Chart file: $CHART_FILE"
         
         # Push to DockerHub as OCI artifact
-        helm push $CHART_FILE oci://${{ env.REGISTRY }}/callmeradical
+        helm push $CHART_FILE oci://registry-1.docker.io/callmeradical
         
         echo "Successfully pushed Helm chart to DockerHub OCI registry"
 
@@ -205,12 +205,12 @@ jobs:
         body: |
           ## Changes in this Release
           - Container image: `${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.ref_name }}`
-          - Helm chart: `oci://${{ env.REGISTRY }}/callmeradical/pod-visualizer:0.1.0`
+          - Helm chart: `oci://registry-1.docker.io/callmeradical/pod-visualizer:0.1.0`
           
           ## Deployment
           ```bash
           # Using Helm from DockerHub OCI registry
-          helm upgrade --install pod-visualizer oci://${{ env.REGISTRY }}/callmeradical/pod-visualizer --version 0.1.0
+          helm upgrade --install pod-visualizer oci://registry-1.docker.io/callmeradical/pod-visualizer --version 0.1.0
           
           # Using Helm from attached file
           helm upgrade --install pod-visualizer ./pod-visualizer-*.tgz
