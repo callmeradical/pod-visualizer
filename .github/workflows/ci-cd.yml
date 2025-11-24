@@ -100,8 +100,8 @@ jobs:
       uses: docker/login-action@v3
       with:
         registry: ${{ env.REGISTRY }}
-        username: ${{ secrets.DOCKER_USERNAME }}
-        password: ${{ secrets.DOCKER_ACCESS_TOKEN }}
+        username: ${{ secrets.DOCKERHUB_USERNAME }}
+        password: ${{ secrets.DOCKERHUB_TOKEN }}
 
     - name: Extract metadata
       id: meta
@@ -174,10 +174,31 @@ jobs:
       with:
         version: v3.12.0
 
-    - name: Package Helm chart
+    - name: Log in to Docker Hub for Helm
+      uses: docker/login-action@v3
+      with:
+        registry: ${{ env.REGISTRY }}
+        username: ${{ secrets.DOCKERHUB_USERNAME }}
+        password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+    - name: Package and Push Helm chart to DockerHub
       run: |
+        # Package the Helm chart
         helm package helm/pod-visualizer
-        ls -la *.tgz
+        
+        # Get the chart version from the packaged file
+        CHART_FILE=$(ls pod-visualizer-*.tgz)
+        echo "Chart file: $CHART_FILE"
+        
+        # Push to DockerHub as OCI artifact
+        helm push $CHART_FILE oci://${{ env.REGISTRY }}/callmeradical
+        
+        # Also push with 'latest' tag for convenience
+        if [[ "${{ github.ref_name }}" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+          # For stable releases, also tag as latest
+          echo "Pushing as latest tag as well..."
+          helm push $CHART_FILE oci://${{ env.REGISTRY }}/callmeradical --version latest
+        fi
 
     - name: Create Release
       uses: actions/create-release@v1
@@ -189,11 +210,14 @@ jobs:
         body: |
           ## Changes in this Release
           - Container image: `${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.ref_name }}`
-          - Helm chart: See attached assets
+          - Helm chart: `oci://${{ env.REGISTRY }}/callmeradical/pod-visualizer:${{ github.ref_name }}`
           
           ## Deployment
           ```bash
-          # Using Helm
+          # Using Helm from DockerHub OCI registry
+          helm upgrade --install pod-visualizer oci://${{ env.REGISTRY }}/callmeradical/pod-visualizer --version ${{ github.ref_name }}
+          
+          # Using Helm from attached file
           helm upgrade --install pod-visualizer ./pod-visualizer-*.tgz
           
           # Using Docker

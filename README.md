@@ -5,15 +5,17 @@ A Kubernetes pod visualizer with **real-time WebSocket updates** - perfect for d
 ## 🚀 Quick Demo
 
 ```bash
-# 1. Clone and set up demo environment
+# Option 1: Use pre-built Helm chart from DockerHub (recommended)
+helm upgrade --install pod-visualizer oci://docker.io/callmeradical/pod-visualizer
+kubectl apply -f https://raw.githubusercontent.com/callmeradical/pod-visualizer/main/k8s/demo-namespace.yaml
+
+# Option 2: Clone and build locally
 git clone <your-repo-url>
 cd pod-visualizer
 ./demo-setup.sh
-
-# 2. Deploy to cluster
 helm install pod-visualizer ./helm/pod-visualizer
 
-# 3. Access the visualizer
+# Access the visualizer
 kubectl port-forward service/pod-visualizer 8080:80
 # Open http://localhost:8080
 ```
