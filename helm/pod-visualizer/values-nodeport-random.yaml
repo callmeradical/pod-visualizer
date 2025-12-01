@@ -1,0 +1,21 @@
+# Example values for NodePort with random port assignment
+# Use with: helm install pod-visualizer ./helm/pod-visualizer -f ./helm/pod-visualizer/values-nodeport-random.yaml
+# Kubernetes will assign a random port from 30000-32767
+
+service:
+  type: NodePort
+  port: 80
+  targetPort: 8080
+  # nodePort not specified = random assignment
+
+# Optional: reduce replicas for demo environments
+replicaCount: 1
+
+# Optional: adjust resources for demo
+resources:
+  limits:
+    cpu: 100m
+    memory: 128Mi
+  requests:
+    cpu: 50m
+    memory: 64Mi

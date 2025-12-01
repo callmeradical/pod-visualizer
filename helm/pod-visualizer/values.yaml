@@ -43,7 +43,7 @@ service:
   type: ClusterIP
   port: 80
   targetPort: 8080
-  # nodePort: 30080  # Uncomment and set when using type: NodePort
+  # nodePort: 30080  # Specify exact port (30000-32767) or omit for random assignment
 
 ingress:
   enabled: false
