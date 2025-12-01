@@ -9,13 +9,19 @@ A Kubernetes pod visualizer with **real-time WebSocket updates** - perfect for d
 helm upgrade --install pod-visualizer oci://registry-1.docker.io/callmeradical/pod-visualizer --version 0.1.0
 kubectl apply -f https://raw.githubusercontent.com/callmeradical/pod-visualizer/main/k8s/demo-namespace.yaml
 
-# Option 2: Clone and build locally
+# Option 2: NodePort service for direct access (no port-forward needed)
+helm upgrade --install pod-visualizer oci://registry-1.docker.io/callmeradical/pod-visualizer \
+  --version 0.1.0 --set service.type=NodePort --set service.nodePort=30080
+kubectl apply -f https://raw.githubusercontent.com/callmeradical/pod-visualizer/main/k8s/demo-namespace.yaml
+# Access via http://localhost:30080 (or http://<node-ip>:30080)
+
+# Option 3: Clone and build locally
 git clone <your-repo-url>
 cd pod-visualizer
 ./demo-setup.sh
 helm install pod-visualizer ./helm/pod-visualizer
 
-# Access the visualizer
+# Access the visualizer (if using ClusterIP)
 kubectl port-forward service/pod-visualizer 8080:80
 # Open http://localhost:8080
 ```

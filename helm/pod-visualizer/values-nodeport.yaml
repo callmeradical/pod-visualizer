@@ -1,0 +1,20 @@
+# Example values for NodePort service type
+# Use with: helm install pod-visualizer ./helm/pod-visualizer -f ./helm/pod-visualizer/values-nodeport.yaml
+
+service:
+  type: NodePort
+  port: 80
+  targetPort: 8080
+  nodePort: 30080  # Access via http://<node-ip>:30080
+
+# Optional: reduce replicas for demo environments
+replicaCount: 1
+
+# Optional: adjust resources for demo
+resources:
+  limits:
+    cpu: 100m
+    memory: 128Mi
+  requests:
+    cpu: 50m
+    memory: 64Mi
