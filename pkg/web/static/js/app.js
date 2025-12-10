@@ -9,6 +9,10 @@ let reconnectAttempts = 0;
 const MAX_RECONNECT_ATTEMPTS = 5;
 const RECONNECT_DELAY = 2000; // 2 seconds
 
+// Track pods for animations
+let previousPods = new Map(); // podName -> podData
+let animationQueue = [];
+
 // Initialize the application
 document.addEventListener('DOMContentLoaded', function() {
     console.log('Pod Visualizer frontend loaded');
@@ -38,8 +42,7 @@ document.addEventListener('DOMContentLoaded', function() {
         if (!isWebSocketEnabled) {
             loadData();
         } else {
-            // With WebSocket, we could send a message to change namespace
-            // For now, we'll let the next update handle it
+            // With WebSocket, we'll let the next update handle it
             console.log('Namespace changed to:', currentNamespace);
         }
     });
@@ -76,106 +79,246 @@ async function loadData() {
 
 // Update the dashboard with cluster data
 function updateDashboard(data) {
-    // Update summary cards
-    updateSummaryCards(data);
+    // Update stats
+    updateStatsBar(data);
     
-    // Update pods section
-    updatePodsSection(data.pods);
-    
-    // Update deployments section
-    updateDeploymentsSection(data.deployments);
+    // Update pods with animations
+    updatePodsWithAnimations(data.pods);
 }
 
-// Update summary cards
-function updateSummaryCards(data) {
-    // Container summary
+// Update stats bar
+function updateStatsBar(data) {
+    // Update pod counts
+    document.getElementById('ready-pods').textContent = data.pods.filter(p => p.status === 'Running').length;
+    document.getElementById('total-pods').textContent = data.pods.length;
+    
+    // Update container counts
     document.getElementById('ready-containers').textContent = data.readyContainers;
     document.getElementById('total-containers').textContent = data.totalContainers;
-    document.getElementById('container-percentage').textContent = `${data.containerPercentage.toFixed(1)}%`;
-    
-    const containerProgress = document.getElementById('container-progress');
-    containerProgress.style.width = `${data.containerPercentage}%`;
-    
-    // Replica summary
-    document.getElementById('ready-replicas').textContent = data.readyReplicas;
-    document.getElementById('total-replicas').textContent = data.totalReplicas;
-    document.getElementById('replica-percentage').textContent = `${data.replicaPercentage.toFixed(1)}%`;
-    
-    const replicaProgress = document.getElementById('replica-progress');
-    replicaProgress.style.width = `${data.replicaPercentage}%`;
 }
 
-// Update pods section
-function updatePodsSection(pods) {
+// Update pods section with animations
+function updatePodsWithAnimations(pods) {
     const container = document.getElementById('pods-container');
     
     if (pods.length === 0) {
         container.innerHTML = '<div class="empty-state">No pods found</div>';
+        previousPods.clear();
         return;
     }
     
-    const podsHtml = pods.map(pod => `
-        <div class="resource-item fade-in">
-            <div class="resource-header">
-                <span class="status-symbol">${pod.statusSymbol}</span>
-                <span class="resource-name">${pod.name}</span>
-                <span class="resource-namespace">/ ${pod.namespace}</span>
-            </div>
-            <div class="visual-blocks">
-                ${generateBlocks(pod.readyContainers, pod.containerCount - pod.readyContainers)}
-            </div>
-            <div class="resource-stats">
-                ${pod.readyContainers}/${pod.containerCount} containers ready
-                • Status: ${pod.status}
-            </div>
-        </div>
-    `).join('');
+    // Create a map of current pods
+    const currentPods = new Map();
+    pods.forEach(pod => currentPods.set(pod.name, pod));
     
-    container.innerHTML = podsHtml;
-}
-
-// Update deployments section
-function updateDeploymentsSection(deployments) {
-    const container = document.getElementById('deployments-container');
+    // Find new, updated, and removed pods
+    const newPods = [];
+    const updatedPods = [];
+    const removedPods = [];
     
-    if (deployments.length === 0) {
-        container.innerHTML = '<div class="empty-state">No deployments found</div>';
-        return;
+    // Check for new and updated pods
+    currentPods.forEach((pod, name) => {
+        if (!previousPods.has(name)) {
+            newPods.push(pod);
+        } else {
+            const prevPod = previousPods.get(name);
+            if (hasSignificantChange(prevPod, pod)) {
+                updatedPods.push({ previous: prevPod, current: pod });
+            }
+        }
+    });
+    
+    // Check for removed pods
+    previousPods.forEach((pod, name) => {
+        if (!currentPods.has(name)) {
+            removedPods.push(pod);
+        }
+    });
+    
+    // Handle removed pods first
+    removedPods.forEach(pod => {
+        const existingCard = document.querySelector(`[data-pod-name="${pod.name}"]`);
+        if (existingCard) {
+            existingCard.classList.add('leaving');
+            setTimeout(() => {
+                if (existingCard.parentNode) {
+                    existingCard.parentNode.removeChild(existingCard);
+                }
+            }, 400);
+        }
+    });
+    
+    // Update or create pod cards
+    const podsHtml = pods.map(pod => createPodCard(pod, newPods.includes(pod))).join('');
+    
+    // Only replace if we don't have existing content or if it's a complete refresh
+    if (container.querySelector('.loading-state') || container.querySelector('.empty-state')) {
+        container.innerHTML = podsHtml;
+        // Add entering animation to all cards
+        setTimeout(() => {
+            container.querySelectorAll('.pod-card').forEach((card, index) => {
+                card.style.animationDelay = `${index * 0.1}s`;
+                card.classList.add('entering');
+            });
+        }, 10);
+    } else {
+        // Selective update - handle new pods
+        newPods.forEach((pod, index) => {
+            const newCard = document.createElement('div');
+            newCard.innerHTML = createPodCard(pod, true);
+            const cardElement = newCard.firstElementChild;
+            
+            // Add with delay based on index
+            setTimeout(() => {
+                container.appendChild(cardElement);
+                setTimeout(() => cardElement.classList.add('entering'), 10);
+            }, index * 200);
+        });
+        
+        // Update existing pods
+        updatedPods.forEach(({ previous, current }) => {
+            const existingCard = document.querySelector(`[data-pod-name="${current.name}"]`);
+            if (existingCard) {
+                updatePodCard(existingCard, previous, current);
+            }
+        });
     }
     
-    const deploymentsHtml = deployments.map(deployment => `
-        <div class="resource-item fade-in">
-            <div class="resource-header">
-                <span class="status-symbol">📦</span>
-                <span class="resource-name">${deployment.name}</span>
-                <span class="resource-namespace">/ ${deployment.namespace}</span>
-            </div>
-            <div class="visual-blocks">
-                ${generateBlocks(deployment.readyReplicas, deployment.replicas - deployment.readyReplicas)}
-            </div>
-            <div class="resource-stats">
-                ${deployment.readyReplicas}/${deployment.replicas} replicas ready
-                • Available: ${deployment.availableReplicas}
-            </div>
-        </div>
-    `).join('');
-    
-    container.innerHTML = deploymentsHtml;
+    // Store current state for next comparison
+    previousPods.clear();
+    currentPods.forEach((pod, name) => previousPods.set(name, { ...pod }));
 }
 
-// Generate visual blocks
-function generateBlocks(ready, notReady) {
-    const readyBlocks = '█'.repeat(ready);
-    const notReadyBlocks = '░'.repeat(notReady);
+// Create HTML for a single pod card
+function createPodCard(pod, isNew = false) {
+    const statusClass = pod.status.toLowerCase();
+    const containers = generateContainerBlocks(pod);
     
     return `
-        <span class="block-ready">${readyBlocks}</span><span class="block-not-ready">${notReadyBlocks}</span>
+        <div class="pod-card ${isNew ? 'new' : ''}" data-pod-name="${pod.name}">
+            <div class="pod-header">
+                <div class="pod-info">
+                    <h3>${pod.name}</h3>
+                    <div class="namespace">${pod.namespace}</div>
+                </div>
+                <div class="pod-status ${statusClass}">${pod.status}</div>
+            </div>
+            <div class="container-blocks" data-container-count="${pod.containerCount}">
+                ${containers}
+            </div>
+            <div class="pod-stats">
+                ${pod.readyContainers}/${pod.containerCount} containers ready
+            </div>
+        </div>
     `;
+}
+
+// Update an existing pod card with animations
+function updatePodCard(cardElement, previousPod, currentPod) {
+    // Update status if changed
+    const statusElement = cardElement.querySelector('.pod-status');
+    if (previousPod.status !== currentPod.status) {
+        statusElement.className = `pod-status ${currentPod.status.toLowerCase()}`;
+        statusElement.textContent = currentPod.status;
+        statusElement.classList.add('status-change');
+        setTimeout(() => statusElement.classList.remove('status-change'), 800);
+    }
+    
+    // Update container blocks if changed
+    if (previousPod.readyContainers !== currentPod.readyContainers || 
+        previousPod.containerCount !== currentPod.containerCount) {
+        
+        const blocksContainer = cardElement.querySelector('.container-blocks');
+        const newBlocks = generateContainerBlocks(currentPod);
+        
+        // Animate container changes
+        animateContainerChanges(blocksContainer, previousPod, currentPod);
+        
+        // Update stats
+        const statsElement = cardElement.querySelector('.pod-stats');
+        statsElement.textContent = `${currentPod.readyContainers}/${currentPod.containerCount} containers ready`;
+    }
+}
+
+// Generate container blocks HTML
+function generateContainerBlocks(pod) {
+    let blocks = '';
+    
+    // Ready containers
+    for (let i = 0; i < pod.readyContainers; i++) {
+        blocks += `<div class="container-block ready" title="Container ${i + 1}: Ready"></div>`;
+    }
+    
+    // Not ready containers
+    const notReadyCount = pod.containerCount - pod.readyContainers;
+    for (let i = 0; i < notReadyCount; i++) {
+        const status = pod.status === 'Pending' ? 'pending' : 
+                      pod.status === 'Failed' ? 'failed' : 'not-ready';
+        blocks += `<div class="container-block ${status}" title="Container ${pod.readyContainers + i + 1}: ${status}"></div>`;
+    }
+    
+    return blocks;
+}
+
+// Animate container block changes
+function animateContainerChanges(container, prevPod, currentPod) {
+    const prevReady = prevPod.readyContainers;
+    const currentReady = currentPod.readyContainers;
+    const prevTotal = prevPod.containerCount;
+    const currentTotal = currentPod.containerCount;
+    
+    // If total containers changed, rebuild completely with animation
+    if (prevTotal !== currentTotal) {
+        const newBlocks = generateContainerBlocks(currentPod);
+        container.innerHTML = newBlocks;
+        
+        // Animate new blocks
+        container.querySelectorAll('.container-block').forEach((block, index) => {
+            block.classList.add('new');
+            block.style.animationDelay = `${index * 0.1}s`;
+            setTimeout(() => block.classList.remove('new'), 500 + (index * 100));
+        });
+    }
+    // If only readiness changed, animate status changes
+    else if (prevReady !== currentReady) {
+        const blocks = container.querySelectorAll('.container-block');
+        
+        // Handle containers becoming ready
+        if (currentReady > prevReady) {
+            for (let i = prevReady; i < currentReady; i++) {
+                if (blocks[i]) {
+                    blocks[i].className = 'container-block ready status-change';
+                    blocks[i].title = `Container ${i + 1}: Ready`;
+                    setTimeout(() => blocks[i].classList.remove('status-change'), 800);
+                }
+            }
+        }
+        // Handle containers becoming not ready
+        else if (currentReady < prevReady) {
+            const status = currentPod.status === 'Pending' ? 'pending' : 
+                          currentPod.status === 'Failed' ? 'failed' : 'not-ready';
+            
+            for (let i = currentReady; i < prevReady; i++) {
+                if (blocks[i]) {
+                    blocks[i].className = `container-block ${status} status-change`;
+                    blocks[i].title = `Container ${i + 1}: ${status}`;
+                    setTimeout(() => blocks[i].classList.remove('status-change'), 800);
+                }
+            }
+        }
+    }
+}
+
+// Check if there's a significant change between pods
+function hasSignificantChange(prevPod, currentPod) {
+    return prevPod.status !== currentPod.status ||
+           prevPod.readyContainers !== currentPod.readyContainers ||
+           prevPod.containerCount !== currentPod.containerCount;
 }
 
 // Update namespace list for filter
 function updateNamespaceList(pods, deployments) {
-    const allResources = [...pods, ...deployments];
+    const allResources = [...pods, ...(deployments || [])];
     allResources.forEach(resource => {
         namespaceList.add(resource.namespace);
     });
@@ -224,23 +367,18 @@ function setLoadingState(isLoading) {
     const refreshBtn = document.getElementById('refresh-btn');
     
     if (isLoading) {
-        refreshBtn.textContent = '🔄 Loading...';
         refreshBtn.disabled = true;
+        refreshBtn.style.opacity = '0.5';
     } else {
-        refreshBtn.textContent = '🔄 Refresh';
         refreshBtn.disabled = false;
+        refreshBtn.style.opacity = '1';
     }
 }
 
 // Show error message
 function showError(message) {
-    const podsContainer = document.getElementById('pods-container');
-    const deploymentsContainer = document.getElementById('deployments-container');
-    
-    const errorHtml = `<div class="error">${message}</div>`;
-    
-    podsContainer.innerHTML = errorHtml;
-    deploymentsContainer.innerHTML = errorHtml;
+    const container = document.getElementById('pods-container');
+    container.innerHTML = `<div class="error">${message}</div>`;
 }
 
 // Refresh data manually
@@ -299,7 +437,7 @@ function connectWebSocket() {
             console.log('✅ WebSocket connected successfully');
             isWebSocketEnabled = true;
             reconnectAttempts = 0;
-            updateConnectionStatus('Connected', true);
+            updateConnectionStatus('connected');
             
             // Disable auto-refresh since we have real-time updates
             const autoRefreshCheckbox = document.getElementById('auto-refresh');
@@ -320,24 +458,17 @@ function connectWebSocket() {
                     filteredData = {
                         ...data,
                         pods: data.pods.filter(pod => pod.namespace === currentNamespace),
-                        deployments: data.deployments.filter(dep => dep.namespace === currentNamespace)
+                        deployments: (data.deployments || []).filter(dep => dep.namespace === currentNamespace)
                     };
                     
                     // Recalculate totals for filtered data
                     filteredData.totalContainers = filteredData.pods.reduce((sum, pod) => sum + pod.containerCount, 0);
                     filteredData.readyContainers = filteredData.pods.reduce((sum, pod) => sum + pod.readyContainers, 0);
-                    filteredData.containerPercentage = filteredData.totalContainers > 0 ? 
-                        (filteredData.readyContainers / filteredData.totalContainers) * 100 : 0;
-                        
-                    filteredData.totalReplicas = filteredData.deployments.reduce((sum, dep) => sum + dep.replicas, 0);
-                    filteredData.readyReplicas = filteredData.deployments.reduce((sum, dep) => sum + dep.readyReplicas, 0);
-                    filteredData.replicaPercentage = filteredData.totalReplicas > 0 ? 
-                        (filteredData.readyReplicas / filteredData.totalReplicas) * 100 : 0;
                 }
                 
                 updateDashboard(filteredData);
                 updateLastUpdatedTime(data.lastUpdated);
-                updateNamespaceList(data.pods, data.deployments); // Use full data for namespace list
+                updateNamespaceList(data.pods, data.deployments || []); // Use full data for namespace list
                 
             } catch (error) {
                 console.error('Error parsing WebSocket message:', error);
@@ -347,12 +478,13 @@ function connectWebSocket() {
         websocket.onclose = function(event) {
             console.log('🔌 WebSocket connection closed');
             isWebSocketEnabled = false;
-            updateConnectionStatus('Disconnected', false);
+            updateConnectionStatus('disconnected');
             
             // Attempt to reconnect
             if (reconnectAttempts < MAX_RECONNECT_ATTEMPTS) {
                 reconnectAttempts++;
                 console.log(`Attempting to reconnect (${reconnectAttempts}/${MAX_RECONNECT_ATTEMPTS})...`);
+                updateConnectionStatus('connecting');
                 setTimeout(() => {
                     connectWebSocket();
                 }, RECONNECT_DELAY * reconnectAttempts); // Exponential backoff
@@ -365,7 +497,7 @@ function connectWebSocket() {
         websocket.onerror = function(error) {
             console.error('WebSocket error:', error);
             isWebSocketEnabled = false;
-            updateConnectionStatus('Error', false);
+            updateConnectionStatus('disconnected');
         };
         
     } catch (error) {
@@ -375,25 +507,26 @@ function connectWebSocket() {
 }
 
 // Update connection status indicator
-function updateConnectionStatus(status, isConnected) {
-    const statusElement = document.getElementById('connection-status');
-    if (!statusElement) return;
+function updateConnectionStatus(status) {
+    const statusDot = document.getElementById('connection-status');
+    if (!statusDot) return;
     
-    statusElement.textContent = status;
-    statusElement.className = isConnected ? 'connected' : 'disconnected';
+    statusDot.className = `status-dot ${status}`;
     
-    if (isConnected) {
-        statusElement.title = 'Real-time updates via WebSocket';
-    } else {
-        statusElement.title = 'Using HTTP polling for updates';
-    }
+    const titles = {
+        connected: 'Connected - Real-time updates',
+        connecting: 'Connecting...',
+        disconnected: 'Disconnected - Using polling'
+    };
+    
+    statusDot.title = titles[status] || status;
 }
 
 // Fallback to HTTP polling when WebSocket fails
 function fallbackToPolling() {
     console.log('Falling back to HTTP polling mode');
     isWebSocketEnabled = false;
-    updateConnectionStatus('Polling', false);
+    updateConnectionStatus('disconnected');
     
     // Load initial data
     loadData();
